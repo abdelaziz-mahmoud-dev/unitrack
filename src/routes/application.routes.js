@@ -2,6 +2,7 @@ const express = require("express");
 const controller = require("../controllers/application.controller");
 const validate = require("../middlewares/validate");
 const protect = require("../middlewares/auth");
+const documentRoutes = require("./document.routes");
 const {
   createApplicationSchema,
   updateApplicationSchema,
@@ -10,6 +11,7 @@ const {
 const router = express.Router();
 
 router.use(protect);
+router.use("/:id/documents", documentRoutes);
 
 router.post("/", validate(createApplicationSchema), controller.create);
 router.get("/", controller.list);
