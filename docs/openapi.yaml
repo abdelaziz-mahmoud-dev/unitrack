@@ -1,0 +1,612 @@
+openapi: 3.0.3
+info:
+  title: UniTrack API
+  version: 1.0.0
+  description: API to track university applications in Germany. Register or log in, then press Authorize and paste your JWT.
+servers:
+  - url: http://localhost:5000
+tags:
+  - name: Auth
+  - name: Universities
+  - name: Applications
+  - name: Documents
+  - name: Dashboard
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Resource id
+      schema:
+        type: string
+    DocId:
+      name: docId
+      in: path
+      required: true
+      description: Document id
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Validation error or invalid id
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            email:
+              type: string
+        token:
+          type: string
+    University:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        city:
+          type: string
+        program:
+          type: string
+        deadline:
+          type: string
+          format: date-time
+        website:
+          type: string
+        owner:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UniversityInput:
+      type: object
+      required: [name, city, program]
+      properties:
+        name:
+          type: string
+          example: TU Munich
+        city:
+          type: string
+          example: Munich
+        program:
+          type: string
+          example: Informatics
+        deadline:
+          type: string
+          format: date
+          example: "2027-01-15"
+        website:
+          type: string
+          example: https://www.tum.de
+    UniversityUpdate:
+      type: object
+      description: Send at least one field.
+      properties:
+        name:
+          type: string
+        city:
+          type: string
+        program:
+          type: string
+        deadline:
+          type: string
+          format: date
+        website:
+          type: string
+    Document:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        done:
+          type: boolean
+        note:
+          type: string
+    Application:
+      type: object
+      properties:
+        _id:
+          type: string
+        university:
+          description: University id, or a populated university object (name, city, program, deadline) in GET responses.
+          oneOf:
+            - type: string
+            - type: object
+        owner:
+          type: string
+        status:
+          type: string
+          enum: [planned, preparing, submitted, accepted, rejected]
+        notes:
+          type: string
+        submittedAt:
+          type: string
+          format: date-time
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+        progress:
+          type: object
+          properties:
+            done:
+              type: integer
+            total:
+              type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Dashboard:
+      type: object
+      properties:
+        totalApplications:
+          type: integer
+        byStatus:
+          type: object
+          properties:
+            planned:
+              type: integer
+            preparing:
+              type: integer
+            submitted:
+              type: integer
+            accepted:
+              type: integer
+            rejected:
+              type: integer
+        upcomingDeadlines:
+          type: array
+          items:
+            type: object
+            properties:
+              applicationId:
+                type: string
+              status:
+                type: string
+              university:
+                type: string
+              city:
+                type: string
+              program:
+                type: string
+              deadline:
+                type: string
+                format: date-time
+        documents:
+          type: object
+          properties:
+            done:
+              type: integer
+            total:
+              type: integer
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Create an account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  example: Abdelaziz
+                email:
+                  type: string
+                  example: aziz@example.com
+                password:
+                  type: string
+                  example: "123456"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in and get a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  example: aziz@example.com
+                password:
+                  type: string
+                  example: "123456"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get the current user
+      responses:
+        "200":
+          description: The current user
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/universities:
+    post:
+      tags: [Universities]
+      summary: Add a university
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UniversityInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/University"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      tags: [Universities]
+      summary: List my universities (sorted by deadline)
+      responses:
+        "200":
+          description: My universities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/University"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/universities/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Universities]
+      summary: Get one university
+      responses:
+        "200":
+          description: The university
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/University"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Universities]
+      summary: Update a university
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UniversityUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/University"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Universities]
+      summary: Delete a university
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/applications:
+    post:
+      tags: [Applications]
+      summary: Start an application for one of my universities (status starts as planned)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [university]
+              properties:
+                university:
+                  type: string
+                  description: Id of one of my universities
+                notes:
+                  type: string
+                  example: Need a motivation letter
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: You already have an application for this university
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags: [Applications]
+      summary: List my applications
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [planned, preparing, submitted, accepted, rejected]
+      responses:
+        "200":
+          description: My applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/applications/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Applications]
+      summary: Get one application
+      responses:
+        "200":
+          description: The application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Applications]
+      summary: Update notes or move the status forward
+      description: |
+        Allowed status moves: planned to preparing, preparing to planned or submitted, submitted to accepted or rejected.
+        accepted and rejected are final. submittedAt is set automatically when the status becomes submitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [planned, preparing, submitted, accepted, rejected]
+                notes:
+                  type: string
+                submittedAt:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Applications]
+      summary: Delete an application
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/applications/{id}/documents:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Documents]
+      summary: Add a document to the checklist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  example: Motivation Letter
+                note:
+                  type: string
+                  example: Max 1 page
+      responses:
+        "201":
+          description: The whole application, with the new document and progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/applications/{id}/documents/{docId}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - $ref: "#/components/parameters/DocId"
+    patch:
+      tags: [Documents]
+      summary: Edit a document or mark it as done
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                done:
+                  type: boolean
+                note:
+                  type: string
+      responses:
+        "200":
+          description: The whole application with updated progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Documents]
+      summary: Remove a document from the checklist
+      responses:
+        "200":
+          description: The whole application with updated progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Stats for my applications and the 5 nearest upcoming deadlines
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
